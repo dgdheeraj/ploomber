@@ -591,9 +591,11 @@ class NotebookRunner(NotebookMixin, Task):
             self.source._check_notebook(raise_=True, check_signature=False)
 
         if isinstance(self.product, MetaProduct):
-            path_to_out = Path(str(self.product[self.nb_product_key]))
+            nb_product = self.product[self.nb_product_key]
         else:
-            path_to_out = Path(str(self.product))
+            nb_product = self.product
+
+        path_to_out = Path(str(nb_product))
 
         # we will run the notebook with this extension, regardless of the
         # user's choice, if any error happens, this will allow them to debug
@@ -617,6 +619,9 @@ class NotebookRunner(NotebookMixin, Task):
             pm.execute_notebook(str(tmp), str(path_to_out_ipynb),
                                 **self.papermill_params)
         except Exception as e:
+            if nb_product.client:
+                nb_product.client.upload(str(path_to_out_ipynb))
+
             raise TaskBuildError(
                 'Error when executing task'
                 f' {self.name!r}. Partially'

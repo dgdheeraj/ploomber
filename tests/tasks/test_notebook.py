@@ -14,6 +14,7 @@ from ploomber.exceptions import (DAGBuildError, DAGRenderError,
                                  TaskInitializationError)
 from ploomber.tasks import notebook
 from ploomber.executors import Serial
+from ploomber.clients import LocalStorageClient
 
 
 def fake_from_notebook_node(self, nb, resources):
@@ -979,3 +980,30 @@ def test_initialize_with_str_like_path(tmp_directory):
 
     assert 'Perhaps you meant passing a pathlib.Path object' in str(
         excinfo.value)
+
+
+@pytest.mark.parametrize('product', [
+    File('out.ipynb'),
+    {
+        'nb': File('out.ipynb'),
+        'another': File('another.csv')
+    },
+])
+def test_uploads_notebook_if_it_fails(tmp_directory, product):
+    path = Path('nb.py')
+    path.write_text("""
+# + tags=["parameters"]
+# some code
+
+# +
+raise ValueError("some stuff happened")
+    """)
+
+    dag = DAG()
+    dag.clients[File] = LocalStorageClient('remote', path_to_project_root='.')
+    NotebookRunner(Path('nb.py'), product, dag=dag)
+
+    with pytest.raises(DAGBuildError):
+        dag.build()
+
+    assert Path('remote', 'out.ipynb').is_file()
